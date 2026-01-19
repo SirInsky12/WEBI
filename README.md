@@ -1,7 +1,8 @@
 # Dashboard Editor - Complete Project Documentation
 
 ## 📚 Documentation Index
-
+<img width="1086" height="842" alt="image" src="https://github.com/user-attachments/assets/964e1842-40ca-4579-afc0-80cb27be3377" />
+for IOBROKER
 ### For Users
 1. **[DASHBOARD_QUICKSTART.md](DASHBOARD_QUICKSTART.md)** - Start here!
    - Step-by-step guide to using the editor
