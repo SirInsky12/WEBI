@@ -1,0 +1,12 @@
+C:\Users\mahil\code\test\LovelaceCardEngine\LovelaceCardEngine.Core\obj\Debug\net9.0\LovelaceCardEngine.Core.csproj.AssemblyReference.cache
+C:\Users\mahil\code\test\LovelaceCardEngine\LovelaceCardEngine.Core\obj\Debug\net9.0\LovelaceCardEngine.Core.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\mahil\code\test\LovelaceCardEngine\LovelaceCardEngine.Core\obj\Debug\net9.0\LovelaceCardEngine.Core.AssemblyInfoInputs.cache
+C:\Users\mahil\code\test\LovelaceCardEngine\LovelaceCardEngine.Core\obj\Debug\net9.0\LovelaceCardEngine.Core.AssemblyInfo.cs
+C:\Users\mahil\code\test\LovelaceCardEngine\LovelaceCardEngine.Core\obj\Debug\net9.0\LovelaceCardEngine.Core.csproj.CoreCompileInputs.cache
+C:\Users\mahil\code\test\LovelaceCardEngine\LovelaceCardEngine.Core\bin\Debug\net9.0\LovelaceCardEngine.Core.deps.json
+C:\Users\mahil\code\test\LovelaceCardEngine\LovelaceCardEngine.Core\bin\Debug\net9.0\LovelaceCardEngine.Core.dll
+C:\Users\mahil\code\test\LovelaceCardEngine\LovelaceCardEngine.Core\bin\Debug\net9.0\LovelaceCardEngine.Core.pdb
+C:\Users\mahil\code\test\LovelaceCardEngine\LovelaceCardEngine.Core\obj\Debug\net9.0\LovelaceCardEngine.Core.dll
+C:\Users\mahil\code\test\LovelaceCardEngine\LovelaceCardEngine.Core\obj\Debug\net9.0\refint\LovelaceCardEngine.Core.dll
+C:\Users\mahil\code\test\LovelaceCardEngine\LovelaceCardEngine.Core\obj\Debug\net9.0\LovelaceCardEngine.Core.pdb
+C:\Users\mahil\code\test\LovelaceCardEngine\LovelaceCardEngine.Core\obj\Debug\net9.0\ref\LovelaceCardEngine.Core.dll

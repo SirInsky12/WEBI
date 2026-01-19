@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "dgSpecHash": "0CBECosnvpo=",
+  "success": true,
+  "projectFilePath": "C:\\Users\\mahil\\code\\test\\LovelaceCardEngine\\LovelaceCardEngine.Core\\LovelaceCardEngine.Core.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\mahil\\.nuget\\packages\\yamldotnet\\16.3.0\\yamldotnet.16.3.0.nupkg.sha512"
+  ],
+  "logs": []
+}
