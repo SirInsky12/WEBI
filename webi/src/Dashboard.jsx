@@ -51,6 +51,42 @@ export default function Dashboard({ objects = [], states = [], connected = false
   const currentView = currentViewIndex >= 0 ? dashboard.views?.[currentViewIndex] : dashboard.views?.[0];
   const cards = currentView?.cards || [];
 
+  // If there's a full-page card (green-energy), render it alone as a full width page
+  const fullPageCard = cards.find(c => c.type === 'green-energy');
+  if (fullPageCard) {
+    // Build entities object for the card (individual entity fields)
+    const ids = [
+      fullPageCard.config?.production_entity,
+      fullPageCard.config?.consumption_entity,
+      fullPageCard.config?.battery_entity,
+      fullPageCard.config?.grid_entity,
+      fullPageCard.config?.warning_entity
+    ].filter(Boolean);
+
+    const entitiesObj = {};
+    ids.forEach(actualId => {
+      const state = states.find(s => s.id === actualId);
+      if (state) {
+        entitiesObj[actualId] = {
+          state: state.value,
+          attributes: {
+            friendly_name: state.name || actualId,
+            unit_of_measurement: state.rawObject?.common?.unit || '',
+            icon: state.rawObject?.common?.icon || 'mdi:information'
+          }
+        };
+      }
+    });
+
+    return (
+      <div style={{ padding: '20px' }}>
+        <div style={{ width: '100%' }}>
+          <CardRenderer card={fullPageCard} entities={entitiesObj} states={{}} />
+        </div>
+      </div>
+    );
+  }
+
   // Create entity state map for cards to access live state values
   const stateMap = {};
   states.forEach(s => {

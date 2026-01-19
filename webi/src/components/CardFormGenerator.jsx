@@ -3,6 +3,138 @@ import { getCardSchema } from '../models/dashboard.js';
 import EntityMultiPicker from './EntityMultiPicker.jsx';
 import ActionBuilder from './ActionBuilder.jsx';
 
+// Custom EntityPicker: searchable and grouped with collapsible groups
+function EntityPicker({ value, onChange, entities = {} }) {
+  const [q, setQ] = useState('');
+  
+  // Group entities by adapter (first part before the dot)
+  const adapters = Object.entries(entities || {}).reduce((acc, [id, ent]) => {
+    const adapter = id.split('.')[0] || 'unknown';
+    if (!acc[adapter]) acc[adapter] = [];
+    const value = (ent && (typeof ent.state !== 'undefined')) ? ent.state : (ent && ent.value) || '';
+    const unit = ent?.attributes?.unit_of_measurement || '';
+    acc[adapter].push({ id, label: ent.attributes?.friendly_name || id, value, unit });
+    return acc;
+  }, {});
+
+  // Sort adapters: common ones first, then alphabetically
+  const commonAdapters = ['alias', 'mqtt', '0_userdata', 'javascript', 'system', 'modbus'];
+  const sortedAdapterKeys = Object.keys(adapters).sort((a, b) => {
+    const aIndex = commonAdapters.indexOf(a);
+    const bIndex = commonAdapters.indexOf(b);
+    if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
+    if (aIndex !== -1) return -1;
+    if (bIndex !== -1) return 1;
+    return a.localeCompare(b);
+  });
+
+  // Expand only groups with <= 8 items by default
+  const initialExpanded = {};
+  sortedAdapterKeys.forEach(k => { initialExpanded[k] = (adapters[k].length <= 8); });
+  const [expanded, setExpanded] = useState(initialExpanded);
+
+  const toggle = (k) => setExpanded(prev => ({ ...prev, [k]: !prev[k] }));
+
+  const filteredAdapters = sortedAdapterKeys.map(k => {
+    const items = adapters[k].filter(it => {
+      if (!q) return true;
+      const t = q.toLowerCase();
+      return it.label.toLowerCase().includes(t) || it.id.toLowerCase().includes(t);
+    });
+    return [k, items];
+  }).filter(([, items]) => items.length > 0);
+
+  return (
+    <div style={{ position: 'relative', zIndex: 1001 }}>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+        <input
+          placeholder="Filter entities..."
+          value={q}
+          onChange={(e) => { setQ(e.target.value); }}
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+          style={{ flex: 1, padding: '6px 10px', borderRadius: 6, border: '1px solid #ddd', fontSize: 13 }}
+        />
+        {value && (
+          <button
+            onClick={() => onChange('')}
+            title="Clear selection"
+            style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #ddd', background: '#fff', cursor: 'pointer', fontSize: 13 }}
+          >✕</button>
+        )}
+      </div>
+
+      <div style={{ maxHeight: 280, overflow: 'auto', borderRadius: 6, border: '1px solid #e5e7eb', background: '#fafbfc' }}>
+        {filteredAdapters.length === 0 && (
+          <div style={{ padding: 12, color: '#6b7280', fontSize: 13, textAlign: 'center' }}>No entities found</div>
+        )}
+
+        {filteredAdapters.map(([adapter, items]) => (
+          <div key={adapter} style={{ borderBottom: '1px solid #e5e7eb', background: '#fff' }}>
+            <div
+              onClick={() => toggle(adapter)}
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: '10px 12px',
+                cursor: 'pointer',
+                background: expanded[adapter] ? '#f8fafc' : '#fff',
+                fontWeight: 600,
+                fontSize: 13,
+                color: '#374151',
+                borderLeft: expanded[adapter] ? '3px solid #0b5cff' : '3px solid transparent',
+                transition: 'all 0.2s'
+              }}
+            >
+              <div>
+                <span style={{ textTransform: 'uppercase', letterSpacing: '0.5px' }}>{adapter}</span>
+                <span style={{ fontWeight: 400, color: '#9ca3af', fontSize: 12, marginLeft: 8 }}>({items.length})</span>
+              </div>
+              <div style={{ fontSize: 11, color: '#6b7280' }}>{expanded[adapter] ? '▼' : '▶'}</div>
+            </div>
+
+            {expanded[adapter] && (
+              <div style={{ padding: '4px 0' }}>
+                {items.map(it => (
+                  <div
+                    key={it.id}
+                    onClick={() => onChange(it.id)}
+                    style={{
+                      padding: '8px 12px 8px 28px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      background: it.id === value ? '#eef2ff' : 'transparent',
+                      borderLeft: it.id === value ? '3px solid #0b5cff' : '3px solid transparent',
+                      transition: 'background 0.15s'
+                    }}
+                    onMouseEnter={(e) => { if (it.id !== value) e.currentTarget.style.background = '#f8fafc'; }}
+                    onMouseLeave={(e) => { if (it.id !== value) e.currentTarget.style.background = 'transparent'; }}
+                  >
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, color: '#111827', fontWeight: it.id === value ? 600 : 400, marginBottom: 2 }}>{it.label}</div>
+                      <div style={{ fontSize: 11, color: '#9ca3af', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.id}</div>
+                    </div>
+                    {(it.value || it.unit) && (
+                      <div style={{ textAlign: 'right', marginLeft: 12, flexShrink: 0 }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: '#374151' }}>
+                          {it.value}{it.unit ? ` ${it.unit}` : ''}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /**
  * CardFormGenerator Component
  * Automatically generates form controls from card schema
@@ -57,6 +189,8 @@ export default function CardFormGenerator({
     setOverrides(entityOverrides);
   };
 
+
+
   const renderFieldControl = (fieldName, fieldSchema) => {
     const value = config[fieldName] !== undefined ? config[fieldName] : fieldSchema.default;
 
@@ -77,12 +211,18 @@ export default function CardFormGenerator({
         });
       }
       return (
-        <EntityMultiPicker
-          entities={entities}
-          selected={selectedIds}
-          overridesMap={entityOverridesMap}
-          onChange={handleEntitiesChange}
-        />
+        <div 
+          onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+          style={{ position: 'relative', zIndex: 2000 }}
+        >
+          <EntityMultiPicker
+            entities={entities}
+            selected={selectedIds}
+            overridesMap={entityOverridesMap}
+            onChange={handleEntitiesChange}
+          />
+        </div>
       );
     }
 
@@ -194,40 +334,12 @@ export default function CardFormGenerator({
         );
 
       case 'entity-picker':
-        // Group entities by adapter (prefix before first dot)
-        const groupedByAdapter = Object.entries(entities || {}).reduce((acc, [id, entity]) => {
-          const adapter = id.split('.')[0] || 'unknown';
-          if (!acc[adapter]) acc[adapter] = [];
-          acc[adapter].push({ id, label: entity.attributes?.friendly_name || id });
-          return acc;
-        }, {});
-
         return (
-          <select
+          <EntityPicker
             value={value || ''}
-            onChange={(e) => handleFieldChange(fieldName, e.target.value)}
-            style={{
-              width: '100%',
-              padding: '8px 12px',
-              fontSize: 14,
-              border: '1px solid #ddd',
-              borderRadius: 6,
-              boxSizing: 'border-box',
-              zIndex: 1001,
-              position: 'relative',
-              cursor: 'pointer',
-              pointerEvents: 'auto'
-            }}
-          >
-            <option value="">Select entity...</option>
-            {Object.entries(groupedByAdapter).map(([adapter, items]) => (
-              <optgroup key={adapter} label={adapter}>
-                {items.map(it => (
-                  <option key={it.id} value={it.id}>{it.label}</option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
+            onChange={(id) => handleFieldChange(fieldName, id)}
+            entities={entities}
+          />
         );
 
       case 'action':
@@ -471,7 +583,7 @@ export default function CardFormGenerator({
   };
 
   return (
-    <div onClick={() => console.log('CardFormGenerator: click')} onMouseDown={() => console.log('CardFormGenerator: mousedown')} style={{ display: 'flex', flexDirection: 'column', gap: 16, pointerEvents: 'auto', position: 'relative', zIndex: 1001 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, pointerEvents: 'auto', position: 'relative', zIndex: 1001 }}>
       <div style={{ 
         padding: 12, 
         background: '#e3f2fd', 

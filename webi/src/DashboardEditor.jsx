@@ -11,7 +11,9 @@ export default function DashboardEditor({
   dashboard = { views: [] },
   entities = {},
   onDashboardChange = () => {},
-  title = 'Dashboard Editor'
+  title = 'Dashboard Editor',
+  pages = [],
+  setPages = () => {}
 }) {
   const [currentViewIdx, setCurrentViewIdx] = useState(0);
   const [selectedCardIdx, setSelectedCardIdx] = useState(null);
@@ -75,6 +77,17 @@ export default function DashboardEditor({
     setEditingCardIdx(newCards.length - 1);
     setShowAddCardMenu(false);
     setShowCardModal(true);
+
+    // If a full-page Green Energy card is added, ensure there's a navigation page for this view
+    if (cardType === 'green-energy') {
+      const viewId = currentView?.id || `view-${Date.now()}`;
+      const viewTitle = currentView?.title || 'Green Energy';
+      // Avoid duplicates
+      setPages(prev => {
+        if (prev.some(p => p.id === viewId)) return prev;
+        return [...prev, { id: viewId, name: viewTitle, states: [], editedNames: {} }];
+      });
+    }
   };
 
   const deleteCard = (cardIdx) => {
@@ -860,8 +873,6 @@ function CardEditModal({ card, onClose, onSave, entities = {} }) {
           animation: 'slideUp 0.3s ease',
           pointerEvents: 'auto'
         }}
-        onClick={() => console.log('Modal: click')}
-        onMouseDown={() => console.log('Modal: mousedown')}
       >
         {/* Header */}
         <div style={{
@@ -901,7 +912,10 @@ function CardEditModal({ card, onClose, onSave, entities = {} }) {
         </div>
 
         {/* Content - Split Layout */}
-        <div style={{
+        <div 
+          onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+          style={{
           flex: 1,
           display: 'flex',
           gap: 0,
@@ -910,7 +924,10 @@ function CardEditModal({ card, onClose, onSave, entities = {} }) {
           pointerEvents: 'auto'
         }}>
           {/* Left Side - Form */}
-          <div style={{
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+            style={{
             flex: 1,
             overflowY: 'auto',
             overflowX: 'visible',

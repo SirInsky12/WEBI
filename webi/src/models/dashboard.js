@@ -258,6 +258,72 @@ export const CardSchemas = {
     }
   },
 
+  // Green Energy full-page dashboard
+  'green-energy': {
+    label: 'Green Energy (Full Page)',
+    description: 'Full page dashboard for green energy overview (production, consumption, battery, charts)',
+    icon: '🌿',
+    fields: {
+      title: {
+        type: 'string',
+        label: 'Title',
+        default: 'EnergyPack Overview',
+        required: false
+      },
+      production_entity: {
+        type: 'entity-picker',
+        label: 'Production Entity',
+        default: null,
+        required: false,
+        hint: 'Entity for energy production (e.g., solar)'
+      },
+      consumption_entity: {
+        type: 'entity-picker',
+        label: 'Consumption Entity',
+        default: null,
+        required: false,
+        hint: 'Entity for energy consumption'
+      },
+      battery_entity: {
+        type: 'entity-picker',
+        label: 'Battery Entity',
+        default: null,
+        required: false,
+        hint: 'Entity for battery level/status'
+      },
+      grid_entity: {
+        type: 'entity-picker',
+        label: 'Grid Entity',
+        default: null,
+        required: false,
+        hint: 'Entity for grid power'
+      },
+      hero_image: {
+        type: 'string',
+        label: 'Hero Image URL',
+        default: '',
+        required: false,
+        hint: 'Optional background/hero image URL'
+      },
+      warning_entity: {
+        type: 'entity-picker',
+        label: 'Warning Entity ( DWD oder Warnings )',
+        default: null,
+        required: false,
+        hint: 'Select an entity which triggers a warning banner when its state is truthy or non-empty'
+      },
+      theme: {
+        type: 'select',
+        label: 'Theme',
+        default: 'light',
+        options: [
+          { value: 'light', label: 'Light' },
+          { value: 'dark', label: 'Dark' }
+        ]
+      }
+    }
+  },
+
   // Battery card - shows battery level, charging and discharging flows
   battery: {
     label: 'Battery',

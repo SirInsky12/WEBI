@@ -18,11 +18,11 @@ export default function EntityMultiPicker({
   overridesMap = {}
 }) {
   const [searchText, setSearchText] = useState('');
-  const [selectedDomains, setSelectedDomains] = useState([]);
   const [selectedAdapters, setSelectedAdapters] = useState([]);
   const [expandedEntity, setExpandedEntity] = useState(null);
   const [draggedItem, setDraggedItem] = useState(null);
   const [overrides, setOverrides] = useState(() => ({ ...overridesMap }));
+  const [expandedAdapters, setExpandedAdapters] = useState({});
 
   // Extract entity list from store object
   const entityList = useMemo(() => {
@@ -32,72 +32,68 @@ export default function EntityMultiPicker({
     }));
   }, [entities]);
 
-  // Get unique domains
-  const allDomains = useMemo(() => {
-    const domains = new Set();
-    entityList.forEach(e => {
-      const domain = getDomain(e.id);
-      if (domain && (!allowedDomains || allowedDomains.includes(domain))) {
-        domains.add(domain);
-      }
-    });
-    return Array.from(domains).sort();
-  }, [entityList, allowedDomains]);
-
-  // Get unique adapters (prefix before first dot)
+  // Get unique adapters (prefix before first dot) with counts
   const allAdapters = useMemo(() => {
-    const adapters = new Set();
+    const adapters = {};
     entityList.forEach(e => {
       const adapter = (e.id || '').split('.')[0];
-      if (adapter) adapters.add(adapter);
+      if (adapter) {
+        if (!adapters[adapter]) adapters[adapter] = 0;
+        adapters[adapter]++;
+      }
     });
-    return Array.from(adapters).sort();
+    
+    // Sort: common adapters first, then alphabetically
+    const commonAdapters = ['alias', 'mqtt', '0_userdata', 'javascript', 'system', 'modbus'];
+    return Object.keys(adapters).sort((a, b) => {
+      const aIndex = commonAdapters.indexOf(a);
+      const bIndex = commonAdapters.indexOf(b);
+      if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
+      if (aIndex !== -1) return -1;
+      if (bIndex !== -1) return 1;
+      return a.localeCompare(b);
+    }).map(k => ({ name: k, count: adapters[k] }));
   }, [entityList]);
 
-  // Filter entities based on search and domain
-  const filteredEntities = useMemo(() => {
-    return entityList.filter(entity => {
-      const domain = getDomain(entity.id);
-      
-      // Check domain filter
-      if (selectedDomains.length > 0 && !selectedDomains.includes(domain)) {
-        return false;
-      }
-
-      // Check adapter filter
+  // Group entities by adapter
+  const entitiesByAdapter = useMemo(() => {
+    const grouped = {};
+    entityList.forEach(entity => {
       const adapter = (entity.id || '').split('.')[0];
-      if (selectedAdapters.length > 0 && !selectedAdapters.includes(adapter)) {
-        return false;
-      }
-
-      // Check search text (fuzzy match)
-      if (searchText.trim()) {
-        const query = searchText.toLowerCase();
-        const entityId = entity.id.toLowerCase();
-        const friendlyName = (entity.attributes?.friendly_name || '').toLowerCase();
-        
-        // Simple fuzzy: all query chars must appear in order
-        let searchIdx = 0;
-        for (let i = 0; i < entityId.length && searchIdx < query.length; i++) {
-          if (entityId[i] === query[searchIdx]) searchIdx++;
-        }
-        if (searchIdx === query.length) return true;
-
-        // Or check friendly name
-        return friendlyName.includes(query);
-      }
-
-      return true;
+      if (!grouped[adapter]) grouped[adapter] = [];
+      grouped[adapter].push(entity);
     });
-  }, [entityList, searchText, selectedDomains]);
+    return grouped;
+  }, [entityList]);
 
-  const toggleDomain = (domain) => {
-    setSelectedDomains(prev => 
-      prev.includes(domain)
-        ? prev.filter(d => d !== domain)
-        : [...prev, domain]
-    );
-  };
+  // Filter entities based on search
+  const filteredEntitiesByAdapter = useMemo(() => {
+    const result = {};
+    
+    Object.entries(entitiesByAdapter).forEach(([adapter, entities]) => {
+      // Check adapter filter
+      if (selectedAdapters.length > 0 && !selectedAdapters.includes(adapter)) {
+        return;
+      }
+      
+      const filtered = entities.filter(entity => {
+        // Check search text
+        if (searchText.trim()) {
+          const query = searchText.toLowerCase();
+          const entityId = entity.id.toLowerCase();
+          const friendlyName = (entity.attributes?.friendly_name || '').toLowerCase();
+          return entityId.includes(query) || friendlyName.includes(query);
+        }
+        return true;
+      });
+      
+      if (filtered.length > 0) {
+        result[adapter] = filtered;
+      }
+    });
+    
+    return result;
+  }, [entitiesByAdapter, searchText, selectedAdapters]);
 
   const toggleAdapter = (adapter) => {
     setSelectedAdapters(prev => 
@@ -105,6 +101,13 @@ export default function EntityMultiPicker({
         ? prev.filter(a => a !== adapter)
         : [...prev, adapter]
     );
+  };
+  
+  const toggleAdapterExpansion = (adapter) => {
+    setExpandedAdapters(prev => ({
+      ...prev,
+      [adapter]: !prev[adapter]
+    }));
   };
 
   const toggleEntitySelection = (entityId) => {
@@ -159,7 +162,11 @@ export default function EntityMultiPicker({
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <div 
+      style={{ display: 'flex', flexDirection: 'column', gap: 16 }}
+      onClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
+    >
       {/* Selected Entities - Top */}
       {selected.length > 0 && (
         <div style={{ 
@@ -314,142 +321,213 @@ export default function EntityMultiPicker({
       <div>
         <input
           type="text"
-          placeholder="Search entities (name, ID)..."
+          placeholder="Filter entities..."
           value={searchText}
           onChange={(e) => setSearchText(e.target.value)}
+          onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
           style={{
             width: '100%',
             padding: '8px 12px',
-            fontSize: 14,
+            fontSize: 13,
             border: '1px solid #ddd',
             borderRadius: 6,
-            marginBottom: 8,
+            marginBottom: 10,
             boxSizing: 'border-box'
           }}
         />
 
-        {/* Domain Filter Chips */}
-        {allDomains.length > 0 && (
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
-            {allDomains.map(domain => (
-              <button
-                key={domain}
-                onClick={() => toggleDomain(domain)}
-                style={{
-                  padding: '6px 12px',
-                  borderRadius: 16,
-                  border: selectedDomains.includes(domain) ? '2px solid #0b5cff' : '1px solid #ddd',
-                  background: selectedDomains.includes(domain) ? '#e3f2fd' : '#fff',
-                  color: selectedDomains.includes(domain) ? '#0b5cff' : '#333',
-                  cursor: 'pointer',
-                  fontSize: 12,
-                  fontWeight: selectedDomains.includes(domain) ? 600 : 400,
-                  transition: 'all 0.2s'
-                }}
-              >
-                {domain}
-              </button>
-            ))}
-          </div>
-        )}
         {/* Adapter Filter Chips */}
-        {allAdapters.length > 0 && (
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
-            {allAdapters.map(adapter => (
+        <div style={{ marginBottom: 10 }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', marginBottom: 6 }}>Filter by Adapter:</div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {allAdapters.map(({ name, count }) => (
               <button
-                key={adapter}
-                onClick={() => toggleAdapter(adapter)}
+                key={name}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleAdapter(name);
+                }}
+                onMouseDown={(e) => e.stopPropagation()}
                 style={{
-                  padding: '6px 12px',
-                  borderRadius: 16,
-                  border: selectedAdapters.includes(adapter) ? '2px solid #0b5cff' : '1px solid #ddd',
-                  background: selectedAdapters.includes(adapter) ? '#e3f2fd' : '#fff',
-                  color: selectedAdapters.includes(adapter) ? '#0b5cff' : '#333',
+                  padding: '6px 10px',
+                  borderRadius: 14,
+                  border: selectedAdapters.includes(name) ? '2px solid #0b5cff' : '1px solid #d1d5db',
+                  background: selectedAdapters.includes(name) ? '#eef2ff' : '#fff',
+                  color: selectedAdapters.includes(name) ? '#0b5cff' : '#6b7280',
                   cursor: 'pointer',
-                  fontSize: 12,
-                  fontWeight: selectedAdapters.includes(adapter) ? 600 : 400,
-                  transition: 'all 0.2s'
+                  fontSize: 11,
+                  fontWeight: selectedAdapters.includes(name) ? 600 : 500,
+                  transition: 'all 0.15s',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.3px'
                 }}
               >
-                {adapter}
+                {name} <span style={{ opacity: 0.7 }}>({count})</span>
               </button>
             ))}
           </div>
-        )}
+        </div>
       </div>
 
-      {/* Available Entities */}
+      {/* Available Entities - Grouped by Adapter */}
       <div>
         <div style={{ 
           fontSize: 12, 
           fontWeight: 600, 
           marginBottom: 8, 
-          color: '#666'
+          color: '#374151'
         }}>
-          Available ({filteredEntities.length})
+          Available Entities
         </div>
         
-        {filteredEntities.length === 0 ? (
+        {Object.keys(filteredEntitiesByAdapter).length === 0 ? (
           <div style={{ 
-            padding: 12, 
+            padding: 16, 
             textAlign: 'center', 
-            color: '#999', 
-            fontSize: 12,
-            border: '1px solid #eee',
-            borderRadius: 4
+            color: '#9ca3af', 
+            fontSize: 13,
+            border: '1px solid #e5e7eb',
+            borderRadius: 6,
+            background: '#fafbfc'
           }}>
             No entities found
           </div>
         ) : (
           <div style={{ 
-            display: 'flex', 
-            flexDirection: 'column',
-            gap: 6,
-            maxHeight: 300,
+            maxHeight: 340,
             overflowY: 'auto',
-            border: '1px solid #eee',
-            borderRadius: 4,
-            padding: 6
+            border: '1px solid #e5e7eb',
+            borderRadius: 6,
+            background: '#fafbfc'
           }}>
-            {filteredEntities.map(entity => (
-              <label
-                key={entity.id}
-                style={{
-                  display: 'flex',
-                  gap: 8,
-                  padding: 8,
-                  background: selected.includes(entity.id) ? '#e3f2fd' : '#fff',
-                  borderRadius: 4,
-                  cursor: 'pointer',
-                  fontSize: 12,
-                  border: selected.includes(entity.id) ? '1px solid #0b5cff' : '1px solid transparent',
-                  transition: 'all 0.2s',
-                  alignItems: 'center'
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={selected.includes(entity.id)}
-                  onChange={() => toggleEntitySelection(entity.id)}
-                  disabled={maxItems && selected.length >= maxItems && !selected.includes(entity.id)}
-                  style={{ cursor: 'pointer' }}
-                />
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 600 }}>
-                    {entity.attributes?.friendly_name || entity.id}
+            {Object.entries(filteredEntitiesByAdapter).map(([adapter, entities]) => {
+              const isExpanded = expandedAdapters[adapter] !== false; // default expanded
+              
+              return (
+                <div key={adapter} style={{ borderBottom: '1px solid #e5e7eb', background: '#fff' }}>
+                  <div
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleAdapterExpansion(adapter);
+                    }}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      padding: '10px 12px',
+                      cursor: 'pointer',
+                      background: isExpanded ? '#f8fafc' : '#fff',
+                      fontWeight: 600,
+                      fontSize: 12,
+                      color: '#374151',
+                      borderLeft: isExpanded ? '3px solid #0b5cff' : '3px solid transparent',
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    <div>
+                      <span style={{ textTransform: 'uppercase', letterSpacing: '0.5px' }}>{adapter}</span>
+                      <span style={{ fontWeight: 400, color: '#9ca3af', fontSize: 11, marginLeft: 8 }}>
+                        ({entities.length})
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 11, color: '#6b7280' }}>{isExpanded ? '▼' : '▶'}</div>
                   </div>
-                  <div style={{ color: '#666', fontSize: 11 }}>
-                    {entity.id} • {entity.state}
-                    {entity.attributes?.unit_of_measurement && (
-                      <span> • {entity.attributes.unit_of_measurement}</span>
-                    )}
-                  </div>
+
+                  {isExpanded && (
+                    <div style={{ padding: '4px 0' }}>
+                      {entities.map(entity => {
+                        const isSelected = selected.includes(entity.id);
+                        const isDisabled = maxItems && selected.length >= maxItems && !isSelected;
+                        
+                        return (
+                          <div
+                            key={entity.id}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              if (!isDisabled) {
+                                toggleEntitySelection(entity.id);
+                              }
+                            }}
+                            style={{
+                              display: 'flex',
+                              gap: 10,
+                              padding: '8px 12px 8px 28px',
+                              background: isSelected ? '#eef2ff' : 'transparent',
+                              cursor: isDisabled ? 'not-allowed' : 'pointer',
+                              fontSize: 12,
+                              borderLeft: isSelected ? '3px solid #0b5cff' : '3px solid transparent',
+                              transition: 'background 0.15s',
+                              alignItems: 'center',
+                              opacity: isDisabled ? 0.5 : 1
+                            }}
+                            onMouseEnter={(e) => { 
+                              if (!isSelected && !isDisabled) e.currentTarget.style.background = '#f8fafc'; 
+                            }}
+                            onMouseLeave={(e) => { 
+                              if (!isSelected) e.currentTarget.style.background = 'transparent'; 
+                            }}
+                          >
+                            {/* Custom Checkbox Visual */}
+                            <div style={{
+                              width: 16,
+                              height: 16,
+                              border: `2px solid ${isSelected ? '#0b5cff' : '#d1d5db'}`,
+                              borderRadius: 3,
+                              background: isSelected ? '#0b5cff' : '#fff',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flexShrink: 0,
+                              transition: 'all 0.15s'
+                            }}>
+                              {isSelected && (
+                                <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                                  <path d="M1 5 L4 8 L9 2" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                </svg>
+                              )}
+                            </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ 
+                              fontWeight: selected.includes(entity.id) ? 600 : 400,
+                              color: '#111827',
+                              marginBottom: 2
+                            }}>
+                              {entity.attributes?.friendly_name || entity.id}
+                            </div>
+                            <div style={{ 
+                              color: '#9ca3af', 
+                              fontSize: 11, 
+                              fontFamily: 'monospace',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap'
+                            }}>
+                              {entity.id}
+                            </div>
+                          </div>
+                          {(entity.state || entity.attributes?.unit_of_measurement) && (
+                            <div style={{ 
+                              textAlign: 'right',
+                              fontSize: 11,
+                              fontWeight: 600,
+                              color: '#374151',
+                              flexShrink: 0,
+                              marginLeft: 8
+                            }}>
+                              {entity.state}{entity.attributes?.unit_of_measurement ? ` ${entity.attributes.unit_of_measurement}` : ''}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                    </div>
+                  )}
                 </div>
-                {entity.attributes?.icon && (
-                  <span style={{ fontSize: 14 }}>📌</span>
-                )}
-              </label>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

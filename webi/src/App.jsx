@@ -41,18 +41,29 @@ export default function App() {
 
   useEffect(() => {
     // Verbindung zu ioBroker mit Authentifizierung
-    const newSocket = io('http://192.168.1.235:8082', {
-      reconnection: true,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000,
-      reconnectionAttempts: 5,
-      path: '/socket.io/',
-      transports: ['polling'],
-      auth: {
-        user: 'Admin',
-        pass: 'Mamamia2982012!'
-      }
-    });
+    const ioHost = 'http://192.168.1.235:8082';
+    console.debug('Connecting to ioBroker at', ioHost);
+    let triedPollingFallback = false;
+
+    const createSocket = (transports) => {
+      const opts = {
+        reconnection: true,
+        reconnectionDelay: 1000,
+        reconnectionDelayMax: 5000,
+        reconnectionAttempts: 5,
+        path: '/socket.io/',
+        transports,
+        auth: {
+          user: 'Admin',
+          pass: 'Mamamia2982012!'
+        }
+      };
+      console.debug('Socket options', opts);
+      return io(ioHost, opts);
+    };
+
+    // Try websocket first (better real-time). If it fails, fallback to polling only.
+    let newSocket = createSocket(['websocket', 'polling']);
 
     newSocket.on('connect', () => {
       console.log('Mit ioBroker verbunden');
@@ -60,11 +71,13 @@ export default function App() {
       setError('');
       
       // Subscribe to state changes
-      newSocket.emit('subscribe', 'stateChange');
-      
-      // Load objects and states automatically
+      // Request subscription if supported (optional)
+      try { newSocket.emit('subscribe', 'stateChange'); } catch (e) {}
+
+      // Load objects and states immediately
       setTimeout(() => {
         setLoading(true);
+        // fetchObjects will be triggered by the effect that watches loading/socket/connected
       }, 100);
     });
 
@@ -77,11 +90,27 @@ export default function App() {
     newSocket.on('connect_error', (err) => {
       console.error('Verbindungsfehler:', err);
       setError(`Verbindungsfehler: ${err.message}`);
+
+      // If websocket transport failed, try polling-only fallback once
+      if (!triedPollingFallback) {
+        console.warn('WebSocket transport failed, retrying with polling-only transport');
+        triedPollingFallback = true;
+        try {
+          newSocket.disconnect();
+        } catch (e) {}
+        newSocket = createSocket(['polling']);
+        setSocket(newSocket);
+      }
     });
 
     newSocket.on('error', (err) => {
       console.error('Socket Error:', err);
       setError(`Fehler: ${err}`);
+    });
+
+    // Debug incoming stateChange events
+    newSocket.on('stateChange', (id, state) => {
+      console.debug('socket stateChange:', id, state);
     });
 
     setSocket(newSocket);
@@ -91,29 +120,7 @@ export default function App() {
     };
   }, []);
 
-  // Debug: capture-phase listener to detect which element receives clicks
-  useEffect(() => {
-    const handler = (e) => {
-      try {
-        const el = document.elementFromPoint(e.clientX, e.clientY);
-        console.log('DEBUG capture mousedown:', { type: e.type, clientX: e.clientX, clientY: e.clientY, target: e.target && (e.target.tagName || e.target.nodeName) });
-        if (el) {
-          const style = window.getComputedStyle(el);
-          console.log('DEBUG elementFromPoint:', el.tagName, 'id=', el.id, 'class=', el.className, 'pointerEvents=', style.pointerEvents, 'zIndex=', style.zIndex);
-        }
-      } catch (err) {
-        console.warn('DEBUG listener error', err);
-      }
-    };
-
-    document.addEventListener('mousedown', handler, true);
-    document.addEventListener('click', handler, true);
-
-    return () => {
-      document.removeEventListener('mousedown', handler, true);
-      document.removeEventListener('click', handler, true);
-    };
-  }, []);
+  // Debug listeners removed - they were interfering with event propagation
 
   // Save pages to localStorage
   useEffect(() => {
@@ -165,6 +172,7 @@ export default function App() {
     }
 
     const handleStateChange = (id, state) => {
+      console.debug('handleStateChange triggered for', id, state);
       setStates(prevStates => 
         prevStates.map(s => 
           s.id === id ? { ...s, value: state?.val, rawState: state } : s
@@ -212,6 +220,7 @@ export default function App() {
       try {
         socket.emit('getObjects', (err, objects) => {
           if (err) return reject(err);
+          console.debug('getObjects response, count=', Object.keys(objects || {}).length);
           resolve(objects || {});
         });
       } catch (e) { reject(e); }
@@ -221,6 +230,7 @@ export default function App() {
       try {
         socket.emit('getStates', (err, states) => {
           if (err) return reject(err);
+          console.debug('getStates response, count=', Object.keys(states || {}).length);
           resolve(states || {});
         });
       } catch (e) { reject(e); }
@@ -694,6 +704,8 @@ export default function App() {
             entities={states.length > 0 ? states : mockEntities}
             onDashboardChange={setNewDashboard}
             title="Dashboard Editor"
+            pages={pages}
+            setPages={setPages}
           />
         ) : route === 'validation' ? (
           <ValidationDemo dashboard={newDashboard} mockEntities={mockEntities} />
